@@ -9,6 +9,7 @@ import logging
 
 # internal import
 from service_finder import find_services
+from code_generator import CodeGenerator
 
 # Add current directory to Python path for imports
 sys.path.insert(0, os.path.dirname(__file__))
@@ -48,6 +49,26 @@ def search_services(
 
     return {"services": results, "count": len(results)}
 
+@mcp.tool()
+def generate_diagram_code(
+    description: str,
+    provider_preference: Optional[str] = None,
+    diagram_type: str = "basic"
+) -> Dict[str, Any]:
+    """Generate Python diagrams code from natural language description"""
+    generator = CodeGenerator()
+    code = generator.generate_from_description(
+        description, provider_preference, diagram_type
+    )
+
+    return {
+        "description": description,
+        "generated_code": code,
+        "imports_needed": generator.get_required_imports(code),
+        "execution_notes": generator.get_execution_notes()
+    }
+
+
 if __name__ == "__main__":
     # this while is used to test service search
     '''Service search test loop
@@ -58,6 +79,18 @@ if __name__ == "__main__":
         if user_query.lower() == 'exit' or provider_query.lower() == 'exit':
             break
         result = search_services(user_query, provider=provider_query)
+        print(json.dumps(result, indent=2))
+    '''
+
+    # this while is used to test diagram generation
+    '''
+    while True:
+        user_description = input("Enter diagram description (or 'exit' to quit): ").strip()
+        provider_query = input("Enter provider filter (or 'exit' to quit): ").strip()
+
+        if user_description.lower() == 'exit' or provider_query.lower() == 'exit':
+            break
+        result = generate_diagram_code(user_description, provider_preference=provider_query)
         print(json.dumps(result, indent=2))
     '''
     mcp.run()
