@@ -145,10 +145,6 @@ src/diagrams_mcp/
 4. Add tests if applicable
 5. Submit a pull request
 
-## License
-
-[Add your license here]
-
 ## Acknowledgments
 
 - [Diagrams](https://diagrams.mingrammer.com/) - The awesome diagrams-as-code library
