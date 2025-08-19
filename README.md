@@ -1,131 +1,128 @@
 # Diagrams MCP Server
 
-An MCP (Model Context Protocol) server that integrates with the [Diagrams](https://diagrams.mingrammer.com/) project, allowing users to easily search for cloud services and generate infrastructure diagrams using natural language descriptions.
+An MCP (Model Context Protocol) server that integrates with the [Diagrams](https://diagrams.mingrammer.com/) project for intelligent cloud service discovery and infrastructure diagram generation.
 
 ## Features
 
-### 🔍 Service Search
+### 🔍 Service Discovery
 - Search across all cloud providers (AWS, Azure, GCP, IBM, Alibaba Cloud)
 - Filter by provider and category
-- Find exact service matches with import paths and icon information
-- Extract service classes from Diagrams package files
+- Find services with fuzzy matching and aliases
+- Get import paths and service information
 
-### 🎨 Diagram Code Generation
+### 🎨 Code Generation
 - Generate Python diagram code from natural language descriptions
-- Automatic component detection and mapping to cloud services
-- Relationship extraction between components
-- Support for multiple diagram types and styles
+- Automatic component detection and mapping
+- Support for multiple providers and diagram types
+- Best practices integration
 
 ### 🖼️ Image Generation
-- Execute generated code to create actual diagram images
-- Support for multiple output formats (PNG, SVG, PDF, JPG)
-- Automatic environment validation
-- Error handling and debugging support
+- Create actual diagram images from generated code
+- Support for PNG, SVG, PDF, JPG formats
+- Cluster and nested diagram support
+- Error handling and validation
+
+### 🔄 Cross-Provider Mapping
+- Find equivalent services across cloud providers
+- Migration assistance between providers
+- Feature and cost comparisons
 
 ## Installation
 
 ```bash
 # Clone the repository
 git clone <repository-url>
-cd diagram-mcp
+cd diagrams-mcp
 
 # Install dependencies
 uv install
 
-# Install required system dependencies
+# Install system requirements
 pip install diagrams graphviz
 ```
 
+### System Dependencies
+- **macOS**: `brew install graphviz`
+- **Ubuntu/Debian**: `sudo apt-get install graphviz`
+- **Windows**: Download from [graphviz.org](https://graphviz.org/download/)
+
 ## Usage
 
-### As an MCP Server
+### Starting the MCP Server
 ```bash
 uv run ./src/diagrams_mcp/server.py
 ```
 
-### Direct Usage
-
-#### Search for Services
-```python
-from diagrams_mcp.server import search_services
-
-# Search for EC2 services in AWS
-result = search_services("ec2", provider="aws")
-print(result)
+### MCP Configuration
+Add to your MCP client configuration:
+```json
+{
+  "mcpServers": {
+    "diagrams": {
+      "command": "uv",
+      "args": ["run", "./src/diagrams_mcp/server.py"]
+    }
+  }
+}
 ```
 
-#### Generate Diagram Code
-```python
-from diagrams_mcp.code_generator import CodeGenerator
-
-generator = CodeGenerator()
-code = generator.generate_from_description(
-    "Load balancer connects to EC2 instances and RDS database",
-    provider_preference="aws"
-)
-print(code)
-```
-
-#### Generate Diagram Images
-```python
-generator = CodeGenerator()
-result = generator.generate_diagram_image(
-    "API Gateway forwards requests to Lambda functions which store data in DynamoDB",
-    provider_preference="aws",
-    output_path="my_architecture"
-)
-
-if result["success"]:
-    print(f"Diagram saved to: {result['generated_files']}")
-else:
-    print(f"Error: {result['error']}")
-```
-
-## MCP Tools
+## Available Tools
 
 ### `search_services`
 Search for cloud services across providers.
 
 **Parameters:**
-- `query` (str): Search term (e.g., "kubernetes", "database", "storage")
-- `provider` (Optional[str]): Provider filter ("aws", "azure", "gcp", "ibm", "alibabacloud")
-
-**Returns:**
-- Dictionary with matching services, their import paths, icons, and metadata
+- `query` (string): Search term (e.g., "database", "kubernetes")
+- `provider` (optional): Filter by provider ("aws", "azure", "gcp", "ibm", "alibabacloud")
 
 ### `generate_diagram_code`
-Generate Python diagrams code from natural language description.
+Generate Python diagrams code from natural language.
 
 **Parameters:**
-- `description` (str): Natural language description of the architecture
-- `provider_preference` (Optional[str]): Preferred cloud provider
-- `diagram_type` (str): Type of diagram to generate (default: "basic")
+- `description` (string): Architecture description
+- `provider_preference` (optional): Preferred cloud provider
+- `diagram_type` (optional): Type of diagram (default: "basic")
 
-**Returns:**
-- Dictionary with generated code, required imports, and execution notes
+### `find_architecture_patterns`
+Find suitable architecture patterns based on requirements.
+
+**Parameters:**
+- `requirements` (string): System requirements and constraints
+- `constraints` (optional): Additional constraints
 
 ## Examples
 
-### Simple Web Application
+### Basic Usage
 ```python
-description = "Users access a web application through a load balancer that distributes traffic to multiple EC2 instances. The instances connect to an RDS database for data storage."
+# Search for services
+search_services("container orchestration")
 
-code = generator.generate_from_description(description, provider_preference="aws")
+# Generate diagram code
+generate_diagram_code(
+    "Web application with load balancer, auto-scaling servers, and database",
+    provider_preference="aws"
+)
+
+# Find architecture patterns
+find_architecture_patterns("E-commerce platform with high availability")
 ```
 
-### Microservices Architecture
-```python
-description = "API Gateway receives requests and forwards them to Lambda functions. The functions store data in DynamoDB and publish events to SQS queues."
+### Common Patterns
 
-result = generator.generate_diagram_image(description, provider_preference="aws")
+**Three-tier Web Application:**
+```
+"Users access web application through load balancer that distributes traffic to multiple servers connected to a database"
 ```
 
-## Requirements
+**Microservices Architecture:**
+```
+"API Gateway routes requests to Lambda functions that store data in DynamoDB and publish to SQS queues"
+```
 
-- Python 3.8+
-- [Diagrams](https://diagrams.mingrammer.com/) package
-- [Graphviz](https://graphviz.org/) (for image generation)
-- MCP compatible client
+**Data Pipeline:**
+```
+"Data flows from S3 bucket through Lambda processing to RDS database with CloudWatch monitoring"
+```
 
 ## Project Structure
 
@@ -134,8 +131,16 @@ src/diagrams_mcp/
 ├── server.py           # Main MCP server
 ├── service_finder.py   # Service search functionality
 ├── code_generator.py   # Diagram code generation
-└── __init__.py
+├── pattern_analyze.py  # Requirements analysis
+└── pattern_engine.py   # Pattern matching
 ```
+
+## Requirements
+
+- Python 3.9+
+- [Diagrams](https://diagrams.mingrammer.com/) package
+- [Graphviz](https://graphviz.org/) (for image generation)
+- MCP compatible client
 
 ## Contributing
 
@@ -144,6 +149,10 @@ src/diagrams_mcp/
 3. Make your changes
 4. Add tests if applicable
 5. Submit a pull request
+
+## License
+
+MIT License
 
 ## Acknowledgments
 
