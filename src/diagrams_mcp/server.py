@@ -10,6 +10,8 @@ import logging
 # internal import
 from service_finder import find_services
 from code_generator import CodeGenerator
+from pattern_analyze import RequirementAnalyzer
+from pattern_engine import PatternMatcher
 
 # Add current directory to Python path for imports
 sys.path.insert(0, os.path.dirname(__file__))
@@ -68,6 +70,42 @@ def generate_diagram_code(
         "execution_notes": generator.get_execution_notes()
     }
 
+@mcp.tool()
+def find_architecture_patterns(
+    requirements: str,
+    constraints: Optional[Dict[str, Any]] = None
+) -> Dict[str, Any]:
+    """
+    Find suitable architecture patterns based on requirements.
+
+    Args:
+        requirements: Description of what you're building
+        constraints: Budget, compliance, performance requirements
+
+    Returns:
+        Ranked list of suitable patterns with explanations
+    """
+
+    # Analyze requirements using NLP/AI
+    analyzed_needs = RequirementAnalyzer().analyze_requirements(requirements)
+
+    # Match against pattern database
+    suitable_patterns = PatternMatcher().match_patterns(analyzed_needs, constraints)
+
+    return {
+        "recommended_patterns": [
+            {
+                "match_score": pattern.match_score,
+                "reasons": pattern.match_reasons,
+                "pros": pattern.pros,
+                "cons": pattern.cons,
+                "estimated_cost": pattern.estimated_cost,
+                "complexity": pattern.implementation_effort
+            }
+            for pattern in suitable_patterns
+        ],
+        "requirements_analysis": analyzed_needs
+    }
 
 if __name__ == "__main__":
     # this while is used to test service search
@@ -83,7 +121,7 @@ if __name__ == "__main__":
     '''
 
     # this while is used to test diagram generation
-    '''
+    """
     while True:
         user_description = input("Enter diagram description (or 'exit' to quit): ").strip()
         provider_query = input("Enter provider filter (or 'exit' to quit): ").strip()
@@ -92,5 +130,5 @@ if __name__ == "__main__":
             break
         result = generate_diagram_code(user_description, provider_preference=provider_query)
         print(json.dumps(result, indent=2))
-    '''
+    """
     mcp.run()
