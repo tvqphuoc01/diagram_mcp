@@ -4,8 +4,41 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Dict, List, Any, Optional, Union, Tuple
 from enum import Enum
+import json
 import re
 import logging
+
+def sanitize_mermaid_label(label: str, is_pipe_wrapped: bool = False) -> str:
+    """
+    Sanitize labels for Mermaid diagrams to prevent syntax issues.
+
+    Args:
+        label: The label text to sanitize
+        is_pipe_wrapped: Whether the label will be wrapped in pipes |label|
+
+    Returns:
+        Sanitized label safe for Mermaid syntax
+    """
+    if not label:
+        return ""
+
+    # Replace problematic characters
+    sanitized = label
+
+    # Replace double quotes with single quotes
+    sanitized = sanitized.replace('"', "'")
+
+    # If pipe-wrapped, escape or remove pipe characters to prevent syntax breaking
+    if is_pipe_wrapped:
+        sanitized = sanitized.replace('|', '/')
+
+    # Replace other potentially problematic characters
+    sanitized = sanitized.replace('\n', ' ').replace('\r', ' ')
+
+    # Trim excessive whitespace
+    sanitized = ' '.join(sanitized.split())
+
+    return sanitized
 
 logger = logging.getLogger(__name__)
 
@@ -351,7 +384,9 @@ class SequenceDiagramGenerator(DiagramGenerator):
             elif conn.connection_type == "return":
                 arrow = "-->"
 
-            lines.append(f"    {conn.from_element}{arrow}{conn.to_element}: {conn.label}")
+            # Use sanitized labels for Mermaid sequence diagrams
+            label = sanitize_mermaid_label(conn.label) if conn.label else ""
+            lines.append(f"    {conn.from_element}{arrow}{conn.to_element}: {label}")
 
         return "\n".join(lines)
 
@@ -626,14 +661,17 @@ class FlowchartGenerator(DiagramGenerator):
         # Define nodes
         for element in spec.elements:
             shape = self._get_mermaid_shape(element.element_type)
-            lines.append(f"    {element.id}{shape[0]}{element.label}{shape[1]}")
+            # Use sanitized labels for Mermaid flowchart nodes
+            label = sanitize_mermaid_label(element.label) if element.label else ""
+            lines.append(f"    {element.id}{shape[0]}{label}{shape[1]}")
 
         lines.append("")
 
         # Define connections
         for conn in spec.connections:
             arrow = "-->"
-            label = f"|{conn.label}|" if conn.label else ""
+            # Use sanitized labels for Mermaid flowchart connections
+            label = f"|{sanitize_mermaid_label(conn.label, is_pipe_wrapped=True)}|" if conn.label else ""
             lines.append(f"    {conn.from_element} {arrow}{label} {conn.to_element}")
 
         return "\n".join(lines)
