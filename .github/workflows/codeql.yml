@@ -96,3 +96,6 @@ jobs:
       uses: github/codeql-action/analyze@v3
       with:
         category: "/language:${{matrix.language}}"
+        
+    - name: Claude Code Action Official
+      uses: anthropics/claude-code-action@v1
