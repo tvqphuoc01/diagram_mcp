@@ -3,7 +3,7 @@
 ## 1. Install Python dependencies
 
 ```bash
-pip install browser-cookie3 playwright pandas gspread
+pip install browser-cookie3 playwright pandas requests
 playwright install chromium
 ```
 
@@ -11,43 +11,18 @@ playwright install chromium
 
 ---
 
-## 2. Google Sheets credentials
+## 2. Google Sheets authentication — no credentials file needed
 
-Choose **one** of the two authentication methods below.
+Authentication uses **the same Chrome cookies** that browser_cookie3 already
+reads for LookerStudio. The pipeline extracts your `SAPISID` cookie and builds
+a `SAPISIDHASH` token accepted by the Google Sheets API v4.
 
-### Option A — Service Account (recommended for cron / servers)
+**Requirements:**
+- Google Chrome is installed and you are logged into your Google account in Chrome.
+- Chrome is **closed** when the pipeline runs (open Chrome locks the Cookies DB on macOS).
+- The Google account you are logged in with must have **Editor** access to the target Sheets.
 
-1. Open [Google Cloud Console](https://console.cloud.google.com/) → **IAM & Admin → Service Accounts**.
-2. Create a service account (e.g. `looker-pipeline@your-project.iam.gserviceaccount.com`).
-3. Grant it **Editor** role on the project (or share each target Sheet with its email directly).
-4. Create a JSON key: **Keys → Add Key → Create new key → JSON**. Download the file.
-5. Place the file somewhere safe, e.g. `~/.config/gspread/service_account.json`.
-6. Export the path before running:
-
-   ```bash
-   export GSPREAD_CREDS_PATH=~/.config/gspread/service_account.json
-   ```
-
-### Option B — OAuth2 saved token (for local/desktop use)
-
-1. In Google Cloud Console enable the **Google Sheets API** and **Google Drive API**.
-2. Create an **OAuth 2.0 Desktop** client ID and download `credentials.json`.
-3. Run the one-time flow:
-
-   ```bash
-   python3 - <<'EOF'
-   import gspread
-   gc = gspread.oauth(credentials_filename="credentials.json")
-   print("Authorised. Token saved to ~/.config/gspread/")
-   EOF
-   ```
-
-4. This saves a token file to `~/.config/gspread/authorized_user.json`.
-5. Export the path:
-
-   ```bash
-   export GSPREAD_CREDS_PATH=~/.config/gspread/authorized_user.json
-   ```
+No service account, no OAuth consent screen, no credentials file required.
 
 ---
 
@@ -102,7 +77,6 @@ On **Windows** (WSL), change it to (using the Windows-side path via `/mnt/c`):
 
 ```bash
 cd "/path/to/Daily Data Raw Update"
-export GSPREAD_CREDS_PATH=~/.config/gspread/service_account.json
 export LOOKER_REPORT_URL="https://datastudio.google.com/reporting/<YOUR_REPORT_ID>/page/<PAGE_ID>"
 python3 looker_to_sheets.py
 ```
@@ -130,8 +104,7 @@ crontab -e
 Add this line (adjust paths):
 
 ```cron
-0 11 * * * GSPREAD_CREDS_PATH=~/.config/gspread/service_account.json \
-  LOOKER_REPORT_URL="https://datastudio.google.com/reporting/<YOUR_REPORT_ID>/page/<PAGE_ID>" \
+0 11 * * * LOOKER_REPORT_URL="https://datastudio.google.com/reporting/<YOUR_REPORT_ID>/page/<PAGE_ID>" \
   /usr/bin/python3 "/path/to/Daily Data Raw Update/looker_to_sheets.py" \
   >> "/path/to/Daily Data Raw Update/cron.log" 2>&1
 ```
@@ -148,7 +121,7 @@ Add this line (adjust paths):
 | Chrome profile locked | `sqlite3.OperationalError: database is locked` | Close Chrome before the scheduled run; or copy the Cookies file to a temp location before reading |
 | LookerStudio UI selector drift | `RuntimeError: Could not open … menu` | Every selector has a text-based fallback; update the CSS selectors in `looker_to_sheets.py` after a UI change |
 | Download path wrong / full disk | `TimeoutError: No new CSV` | Verify `DOWNLOAD_DIR` in config; ensure free space; check browser download permissions |
-| Google credentials expiry | `gspread.exceptions.APIError: 401` | Service account keys don't expire by default; OAuth2 tokens auto-refresh if the refresh token is valid — re-run the OAuth flow if it fails |
+| Google session expiry | Sheets API returns 401/403 | Log back into Google in Chrome to refresh the session cookies, then re-run |
 | Column count change in report | `ValueError: Column count mismatch` | Update `EXPECTED_COLUMNS` in `looker_config.py` after confirming the new schema |
 | LookerStudio login session expired | Page loads login screen instead of report | Log back into Google in Chrome and verify the session cookie is fresh |
 | macOS cron Full Disk Access denied | `PermissionError` on Cookies file | Grant Full Disk Access to `/usr/sbin/cron` in System Settings → Privacy & Security |

@@ -1,9 +1,11 @@
 """
 LookerStudio → Google Sheets daily pipeline.
 All tuneable values live in looker_config.py.
-Credentials path is read from env var GSPREAD_CREDS_PATH.
+Google Sheets writes are authenticated via Chrome cookies (browser_cookie3) —
+no service-account JSON or OAuth2 flow required.
 """
 
+import hashlib
 import os
 import re
 import sys
@@ -15,7 +17,7 @@ import pathlib
 
 import browser_cookie3
 import pandas as pd
-import gspread
+import requests
 from playwright.sync_api import sync_playwright, TimeoutError as PWTimeoutError
 
 import looker_config as cfg
@@ -270,32 +272,63 @@ def parse_and_validate(csv_path: str) -> pd.DataFrame:
 
 
 # ---------------------------------------------------------------------------
-# Step F — Write to Google Sheets
+# Step F — Write to Google Sheets via cookie-based Sheets API
 # ---------------------------------------------------------------------------
 
-def _open_sheet(gc: gspread.Client, url: str, sheet_name: str) -> gspread.Worksheet:
-    spreadsheet = gc.open_by_url(url)
-    try:
-        return spreadsheet.worksheet(sheet_name)
-    except gspread.WorksheetNotFound:
-        return spreadsheet.add_worksheet(title=sheet_name, rows=5000, cols=50)
+_SHEETS_API = "https://sheets.googleapis.com/v4/spreadsheets"
+_ORIGIN = "https://docs.google.com"
 
 
-def write_to_sheets(df: pd.DataFrame) -> None:
-    creds_path = os.environ.get("GSPREAD_CREDS_PATH", "")
-    if not creds_path:
-        raise EnvironmentError(
-            "STEP_F|Environment variable GSPREAD_CREDS_PATH is not set"
+def _sapisidhash(sapisid: str) -> str:
+    ts = str(int(time.time()))
+    digest = hashlib.sha1(f"{ts} {sapisid} {_ORIGIN}".encode()).hexdigest()
+    return f"SAPISIDHASH {ts}_{digest}"
+
+
+def _build_sheets_session(cookies: list[dict]) -> tuple[requests.Session, bool]:
+    """Build a requests.Session authenticated with Chrome cookies.
+
+    Returns (session, has_sapisid) — callers should warn if SAPISID is absent.
+    """
+    session = requests.Session()
+    sapisid = None
+    for c in cookies:
+        session.cookies.set(c["name"], c["value"], domain=c["domain"])
+        if c["name"] == "SAPISID":
+            sapisid = c["value"]
+
+    session.headers.update({
+        "Origin": _ORIGIN,
+        "Referer": f"{_ORIGIN}/",
+        "X-Origin": _ORIGIN,
+    })
+    if sapisid:
+        session.headers["Authorization"] = _sapisidhash(sapisid)
+
+    return session, sapisid is not None
+
+
+def _sheet_id_from_url(url: str) -> str:
+    m = re.search(r"/spreadsheets/d/([^/]+)", url)
+    if not m:
+        raise ValueError(f"STEP_F|Cannot extract spreadsheet ID from URL: {url}")
+    return m.group(1)
+
+
+def _sheets_request(session: requests.Session, method: str, url: str, **kwargs) -> dict:
+    resp = session.request(method, url, **kwargs)
+    if not resp.ok:
+        raise RuntimeError(
+            f"STEP_F|Sheets API {method} {url} → {resp.status_code}: {resp.text[:300]}"
         )
+    return resp.json()
 
-    creds_path = pathlib.Path(creds_path).expanduser()
-    log.info("STEP_F|Authenticating gspread from %s", creds_path)
 
-    # Support both service-account JSON and OAuth2 saved token
-    if creds_path.suffix == ".json":
-        gc = gspread.service_account(filename=str(creds_path))
-    else:
-        gc = gspread.oauth(credentials_filename=str(creds_path))
+def write_to_sheets(df: pd.DataFrame, cookies: list[dict]) -> None:
+    log.info("STEP_F|Building Sheets session from Chrome cookies")
+    session, has_sapisid = _build_sheets_session(cookies)
+    if not has_sapisid:
+        log.warning("STEP_F|SAPISID cookie not found — API calls may be rejected")
 
     rows = [df.columns.tolist()] + df.astype(str).values.tolist()
 
@@ -306,9 +339,25 @@ def write_to_sheets(df: pd.DataFrame) -> None:
         if not url:
             log.warning("STEP_F|URL for sheet '%s' is empty — skipping", name)
             continue
-        ws = _open_sheet(gc, url, name)
-        ws.clear()
-        ws.update(rows, value_input_option="USER_ENTERED")
+
+        sid = _sheet_id_from_url(url)
+        encoded_name = requests.utils.quote(name, safe="")
+
+        # Refresh SAPISIDHASH timestamp before each sheet write
+        sapisid_val = session.cookies.get("SAPISID")
+        if sapisid_val:
+            session.headers["Authorization"] = _sapisidhash(sapisid_val)
+
+        _sheets_request(
+            session, "POST",
+            f"{_SHEETS_API}/{sid}/values/{encoded_name}:clear",
+        )
+        _sheets_request(
+            session, "PUT",
+            f"{_SHEETS_API}/{sid}/values/{encoded_name}",
+            params={"valueInputOption": "USER_ENTERED"},
+            json={"range": name, "majorDimension": "ROWS", "values": rows},
+        )
         log.info("STEP_F|Wrote %d rows to '%s'", len(df), name)
 
 
@@ -343,7 +392,7 @@ def main() -> None:
 
         df = parse_and_validate(csv_path)
         row_count = len(df)
-        write_to_sheets(df)
+        write_to_sheets(df, cookies)
         _log_result(row_count, success=True)
         log.info("DONE|Pipeline completed successfully (%d rows)", row_count)
 
