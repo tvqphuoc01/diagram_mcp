@@ -102,7 +102,10 @@ def _wait_for_report(page) -> None:
 def launch_browser_and_load_report(playwright, cookies: list[dict]):
     """Launch headless Chromium, inject cookies, navigate to report."""
     log.info("STEP_B|Launching headless Chromium")
-    browser = playwright.chromium.launch(headless=True)
+    browser = playwright.chromium.launch(
+        headless=True,
+        executable_path=cfg.CHROMIUM_EXECUTABLE_PATH or None,
+    )
     context = browser.new_context(accept_downloads=True)
 
     context.add_cookies(cookies)
