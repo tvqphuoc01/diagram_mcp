@@ -11,5 +11,5 @@ CHROMIUM_EXECUTABLE_PATH = os.environ.get(
 )
 DOWNLOAD_DIR = "~/Downloads"
 LOG_FILE = "pipeline.log"
-SHEET1_URL = ""  # fill in before running
-SHEET2_URL = ""  # fill in before running
+SHEET1_URL = os.environ.get("SHEET1_URL", "")
+SHEET2_URL = os.environ.get("SHEET2_URL", "")
